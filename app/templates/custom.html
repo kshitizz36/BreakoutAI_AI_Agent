@@ -1,0 +1,54 @@
+{% extends "streamlit_base.html" %}
+
+{% block head %}
+{{ super() }}
+<style>
+    /* Custom styles */
+    .stApp {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .stButton>button {
+        background-color: #4CAF50;
+        color: white;
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    .stButton>button:hover {
+        background-color: #45a049;
+    }
+
+    .stProgress > div > div > div {
+        background-color: #4CAF50;
+    }
+
+    .stAlert {
+        padding: 16px;
+        border-radius: 4px;
+        margin-bottom: 16px;
+    }
+
+    .stAlert.success {
+        background-color: #dff0d8;
+        border-color: #d6e9c6;
+        color: #3c763d;
+    }
+
+    .stAlert.error {
+        background-color: #f2dede;
+        border-color: #ebccd1;
+        color: #a94442;
+    }
+
+    /* Responsive design */
+    @media (max-width: 768px) {
+        .stApp {
+            padding: 1rem;
+        }
+    }
+</style>
+{% endblock %}
