@@ -141,23 +141,9 @@ The application includes robust error handling for:
 - File upload issues
 - Data validation failures
 
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ## 🎥 Demo
 
 [Watch the demo video](your-loom-video-link-here)
-
-## 📞 Contact & Support
-
-For questions or support, please contact:
-- Email: support@breakoutinvesting.in
-- Phone: +49 151 6858 3271
 
 ## 🌟 Acknowledgments
 
