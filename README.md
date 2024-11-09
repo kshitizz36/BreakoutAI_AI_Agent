@@ -1,36 +1,61 @@
-
 # AI Information Extractor
 
-A powerful AI agent that processes datasets and performs web searches to extract specific information based on user queries.
+An advanced AI agent that automates web-based information extraction for entities in datasets. This tool leverages cutting-edge LLM technology to process and structure data from web searches, making information gathering efficient and scalable.
 
-## Features
+![Project Banner](assets/banner.png)
 
-- File Upload and Processing
-  - CSV file upload support
-  - Google Sheets integration
-  - Large file handling with chunking
-  
-- Dynamic Query Input
-  - Custom prompt templates
-  - Multiple field extraction
-  - Batch processing support
+## 🚀 Project Overview
 
-- Automated Web Search
-  - SerpAPI integration
-  - Rate limiting and retry mechanisms
-  - Content extraction and cleaning
+AI Information Extractor is a powerful tool that:
+- Processes datasets (CSV/Google Sheets) to identify target entities
+- Performs intelligent web searches for each entity
+- Uses LLM technology to extract and structure relevant information
+- Presents data in an intuitive dashboard interface
+- Supports both single-entity and batch processing modes
 
-- LLM-Based Information Extraction
-  - Using Groq API
-  - Structured data extraction
-  - Confidence scoring
-  
-- Results Management
-  - CSV export
-  - Google Sheets export
-  - Data validation
+## ✨ Key Features
 
-## Setup Instructions
+### Data Input & Processing
+- CSV file upload with drag-and-drop support
+- Google Sheets integration for direct data access
+- Real-time data preview and validation
+- Column selection for entity identification
+
+### Query Configuration
+- Pre-built query templates for common use cases
+- Custom query builder with dynamic placeholders
+- Multi-field extraction support
+- Batch processing capabilities
+
+### Information Extraction
+- Automated web searching with rate limiting
+- LLM-powered information parsing
+- Structured data extraction
+- Confidence scoring for extracted information
+
+### Results Management
+- Interactive results dashboard
+- CSV export functionality
+- Google Sheets integration for results
+- Detailed error reporting and handling
+
+## 🛠 Technical Stack
+
+- **Frontend**: Streamlit
+- **Backend**: Python
+- **Data Processing**: Pandas
+- **Web Search**: SerpAPI
+- **LLM Integration**: Groq API
+- **Cloud Integration**: Google Sheets API
+
+## 📋 Prerequisites
+
+- Python 3.9+
+- Google Cloud Platform account (for Sheets API)
+- SerpAPI account
+- Groq API account
+
+## 🔧 Installation & Setup
 
 1. Clone the repository:
 ```bash
@@ -40,7 +65,7 @@ cd BreakoutAI_AI_Agent
 
 2. Create and activate virtual environment:
 ```bash
-python3 -m venv venv
+python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
@@ -52,80 +77,93 @@ pip install -r requirements.txt
 4. Set up environment variables:
 ```bash
 cp .env.example .env
-# Edit .env with your API keys:
-# - SERPAPI_KEY
-# - GROQ_API_KEY
-# - GOOGLE_CREDENTIALS_FILE
+# Edit .env with your API keys and configuration
 ```
 
-5. Run the application:
+Required Environment Variables:
+- `SERPAPI_KEY`: Your SerpAPI key
+- `GROQ_API_KEY`: Your Groq API key
+- `GOOGLE_CREDENTIALS_FILE`: Path to Google credentials JSON
+
+## 🚦 Usage Guide
+
+### Starting the Application
 ```bash
 streamlit run app/main.py
 ```
 
-## Usage Guide
+### Single Entity Search
+1. Select "Single Company" mode
+2. Enter the company name
+3. Choose or customize search query
+4. View and export results
 
-1. Data Input:
-   - Upload a CSV file or connect to Google Sheets
-   - Select the column containing entities
-   - Preview and validate data
+### Batch Processing
+1. Upload CSV file or connect Google Sheet
+2. Select entity column
+3. Configure search parameters
+4. Monitor processing progress
+5. Export results
 
-2. Query Configuration:
-   - Use pre-made templates or create custom queries
-   - Configure extraction parameters
-   - Set up batch processing
+### Google Sheets Integration
+1. Enable Google Sheets API in GCP
+2. Download credentials JSON
+3. Set up environment variables
+4. Use sheet ID for data import/export
 
-3. Processing:
-   - Monitor progress in real-time
-   - View extraction results
-   - Export data in desired format
+## 🎯 Features Overview
 
-## API Keys Setup
+### Core Features
+- [x] CSV and Google Sheets support
+- [x] Dynamic query templates
+- [x] Web search integration
+- [x] LLM-powered extraction
+- [x] Results export options
 
-1. SerpAPI:
-   - Sign up at https://serpapi.com
-   - Get API key from dashboard
+### Advanced Features
+- [x] Single entity processing
+- [x] Multi-field extraction
+- [x] Rate limiting & error handling
+- [x] Progress monitoring
+- [x] Data validation
 
-2. Groq:
-   - Register at https://www.groq.com
-   - Generate API key
+## 🔒 Security Notes
 
-3. Google Sheets (Optional):
-   - Create project in Google Cloud Console
-   - Enable Sheets API
-   - Download credentials
+- API keys and credentials are stored in environment variables
+- Google credentials are secured in a dedicated directory
+- Rate limiting implemented for API calls
+- Error handling for failed requests
 
-## Project Structure
-```
-BreakoutAI_AI_Agent/
-├── app/
-│   ├── services/        # External service integrations
-│   ├── utils/          # Utility functions
-│   └── main.py         # Main application
-├── tests/              # Test suite
-└── credentials/        # API credentials
-```
+## 📊 Error Handling
 
-## Testing
+The application includes robust error handling for:
+- API rate limits
+- Failed searches
+- LLM processing errors
+- File upload issues
+- Data validation failures
 
-Run the test suite:
-```bash
-pytest tests/ -v
-```
+## 🤝 Contributing
 
-## Demo Video
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-[Link to Loom Video Demonstration]
+## 📝 License
 
-## Additional Features
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-- Advanced error handling
-- Rate limiting and retry mechanisms
-- Data validation and cleaning
-- Batch processing support
-- Progress monitoring
-- Custom query templates
+## 🎥 Demo
 
-## License
+[Watch the demo video](your-loom-video-link-here)
 
-This project is licensed under the MIT License.
+## 📞 Contact & Support
+
+For questions or support, please contact:
+- Email: support@breakoutinvesting.in
+- Phone: +49 151 6858 3271
+
+## 🌟 Acknowledgments
+
+- [Breakout Consultancy Private Limited](https://www.breakoutinvesting.in)
+- [SerpAPI](https://serpapi.com)
+- [Groq](https://www.groq.com)
+- [Streamlit](https://streamlit.io)
