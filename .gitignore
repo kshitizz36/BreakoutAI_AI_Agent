@@ -202,4 +202,4 @@ ENV/
 credentials.json
 
 # Logs
-*.log
+*.log.env
