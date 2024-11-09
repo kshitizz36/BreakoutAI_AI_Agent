@@ -2,8 +2,6 @@
 
 An advanced AI agent that automates web-based information extraction for entities in datasets. This tool leverages cutting-edge LLM technology to process and structure data from web searches, making information gathering efficient and scalable.
 
-![Project Banner](assets/banner.png)
-
 ## 🚀 Project Overview
 
 AI Information Extractor is a powerful tool that:
