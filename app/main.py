@@ -279,6 +279,11 @@ class AIAgentUI:
         # Display each field in an organized way
         for index, row in results_df.iterrows():
             with st.expander(f"Details for {row['Entity']}", expanded=True):
+                # Show any errors first
+                if 'error' in row and row['error']:
+                    st.error(f"Error processing this entity: {row['error']}")
+                    continue
+                    
                 col1, col2 = st.columns(2)
                 
                 with col1:
@@ -301,7 +306,14 @@ class AIAgentUI:
                         st.write("Other Details:")
                         for key, value in row['additional_info'].items():
                             st.write(f"- {key}: {value}")
-        
+                            
+                # Show confidence scores if available
+                if row.get('confidence_scores'):
+                    st.write("**Confidence Scores**")
+                    scores = row['confidence_scores']
+                    for field, score in scores.items():
+                        st.progress(float(score), text=f"{field}: {score:.2f}")
+
         st.header("5. Export Options")
         
         # Download as CSV

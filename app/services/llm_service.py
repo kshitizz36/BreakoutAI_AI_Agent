@@ -53,21 +53,25 @@ class LLMService:
         ])
         
         return f"""Find key information about {entity} from these sources.
-Provide information in this JSON format:
+Return information in this exact JSON format. Include as much detail as possible:
 {{
-    "website": "main website",
+    "email": "company email or null",
     "location": "headquarters location",
+    "website": "main company website",
     "description": "brief company description",
-    "email": "contact email if found",
+    "social_media": {{
+        "platform_name": "url"
+    }},
     "phone": "contact phone if found",
-    "social_media": {{"platform": "url"}},
-    "additional_info": {{"key": "value"}}
+    "additional_info": {{
+        "key": "any other relevant details"
+    }}
 }}
 
 Sources:
 {context}
 
-Extract only factual information present in the sources."""
+Extract only factual information found in the sources. Use null for missing information."""
 
     async def _rate_limited_request(self, messages: List[Dict[str, str]], max_retries: int = 3) -> Any:
         """Make a rate-limited request to the LLM API."""
@@ -112,6 +116,8 @@ Extract only factual information present in the sources."""
                 # Clean response if needed
                 if response_text.startswith('```json'):
                     response_text = response_text[7:-3]
+                elif response_text.startswith('```'):
+                    response_text = response_text[3:-3]
                 response_text = response_text.strip()
                 
                 extracted_info = json.loads(response_text)
@@ -128,28 +134,64 @@ Extract only factual information present in the sources."""
     async def verify_information(self, info: ExtractedInformation) -> ExtractedInformation:
         """Verify and validate extracted information."""
         try:
-            # Simplified verification prompt
-            prompt = "Verify this information is well-formatted and add confidence scores:\n" + \
-                    json.dumps(info.model_dump(), indent=2)
+            # Create a simpler verification prompt
+            info_dict = info.model_dump()
+            prompt = f"""Verify and validate this information about {info_dict.get('Entity', 'the entity')}:
+{json.dumps(info_dict, indent=2)}
+
+Return the verified information in this exact JSON format, with confidence scores added. Example:
+{{
+    "email": "example@company.com",
+    "location": "City, Country",
+    "website": "https://company.com",
+    "description": "Company description",
+    "social_media": {{"platform": "url"}},
+    "phone": "phone number",
+    "additional_info": {{"key": "value"}},
+    "confidence_scores": {{
+        "email": 0.9,
+        "location": 0.8,
+        "website": 1.0,
+        "description": 0.9
+    }}
+}}"""
             
             completion = await self._rate_limited_request([
                 {
                     "role": "system",
-                    "content": "You are a data verification assistant. Return only valid JSON."
+                    "content": "You are a data verification assistant. Return only valid JSON with the exact structure requested."
                 },
                 {"role": "user", "content": prompt}
             ])
             
+            # Clean and parse response
             response_text = completion.choices[0].message.content.strip()
-            try:
-                if response_text.startswith('```json'):
-                    response_text = response_text[7:-3]
-                response_text = response_text.strip()
+            
+            # Remove any markdown formatting if present
+            if response_text.startswith('```json'):
+                response_text = response_text[7:-3]
+            elif response_text.startswith('```'):
+                response_text = response_text[3:-3]
                 
+            response_text = response_text.strip()
+            
+            try:
                 verification = json.loads(response_text)
+                # Ensure all required fields exist
+                required_fields = ['email', 'location', 'website', 'description', 
+                                 'social_media', 'phone', 'additional_info']
+                for field in required_fields:
+                    if field not in verification:
+                        verification[field] = info_dict.get(field)
+                
+                # Ensure confidence scores exist
+                if 'confidence_scores' not in verification:
+                    verification['confidence_scores'] = {}
+                
                 return ExtractedInformation(**verification)
             except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse verification response: {e}")
+                logger.error(f"Failed to parse verification response: {e}\nResponse: {response_text}")
+                # Return original info if verification fails
                 return info
                 
         except Exception as e:
