@@ -42,6 +42,8 @@ def init_session_state():
         st.session_state.processing = False
     if 'results' not in st.session_state:
         st.session_state.results = None
+    if 'loaded_data' not in st.session_state:
+        st.session_state.loaded_data = None
 
 class AIAgentUI:
     def __init__(self):
@@ -87,10 +89,11 @@ class AIAgentUI:
         company_name = st.text_input("Enter company name:", placeholder="e.g., Google")
         
         if company_name:
-            return pd.DataFrame({'company_name': [company_name]})
+            return pd.DataFrame({'entity_name': [company_name]})
         return None
 
-    def file_upload_section(self):
+    async def file_upload_section(self):
+        """Handle file upload and Google Sheets connection with proper async handling."""
         st.header("1. Data Input")
         
         data_source = st.radio(
@@ -98,49 +101,75 @@ class AIAgentUI:
             ["Upload CSV", "Google Sheets"]
         )
         
-        df = None
         try:
             if data_source == "Upload CSV":
                 uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
                 if uploaded_file:
                     df = pd.read_csv(uploaded_file)
+                    st.session_state.loaded_data = df
                     st.success("✅ File uploaded successfully!")
             else:
                 sheet_id = st.text_input("Enter Google Sheet ID")
-                if sheet_id:
-                    df = self.sheets_service.get_sheet_data(sheet_id)
+                if sheet_id and sheet_id != st.session_state.get('last_sheet_id'):
+                    sheet_data = await self.sheets_service.get_sheet_data(sheet_id)
+                    df = pd.DataFrame(sheet_data)
+                    st.session_state.loaded_data = df
+                    st.session_state.last_sheet_id = sheet_id
                     st.success("✅ Google Sheet connected!")
+                elif st.session_state.get('loaded_data') is not None:
+                    df = st.session_state.loaded_data
+                else:
+                    return None
                     
-            if df is not None:
+            if df is not None and not df.empty:
                 st.write("Preview:")
                 st.dataframe(df.head())
+                return df
                 
         except Exception as e:
-            st.error(f"Error: {str(e)}")
+            st.error(f"Error loading data: {str(e)}")
+            return None
             
-        return df
+        return None
     
-    def column_selection(self, df):
-        if df is not None:
+    def column_selection(self, df: Optional[pd.DataFrame]) -> Optional[str]:
+        """Select column containing entity names with flexible naming."""
+        if df is not None and not df.empty:
             st.header("2. Column Selection")
             
-            # If it's a single company, we already know the column
-            if len(df.columns) == 1 and 'company_name' in df.columns:
-                return 'company_name'
+            # For single company input
+            if len(df.columns) == 1:
+                return df.columns[0]
+            
+            # Suggest likely column names
+            likely_columns = [
+                col for col in df.columns if any(
+                    keyword in col.lower() 
+                    for keyword in ['company', 'entity', 'name', 'organization', 'business']
+                )
+            ]
+            
+            # Create selection list with likely columns first
+            column_options = likely_columns + [
+                col for col in df.columns 
+                if col not in likely_columns
+            ]
             
             selected_column = st.selectbox(
                 "Select the column containing entities:",
-                df.columns.tolist()
+                column_options,
+                index=0 if likely_columns else 0
             )
             
             if selected_column:
                 st.write("Sample entities:")
-                st.write(df[selected_column].head())
+                st.write(df[selected_column].head().tolist())
             
             return selected_column
         return None
     
     def query_configuration(self):
+        """Configure search query with templates or custom input."""
         st.header("3. Query Configuration")
         
         query_type = st.radio(
@@ -202,13 +231,14 @@ class AIAgentUI:
                 "error": str(e)
             }])
 
-    async def process_data(self, df, column, query):
+    async def process_data(self, df: pd.DataFrame, column: str, query: str):
+        """Process data with proper error handling and progress tracking."""
         if st.button("Process Data", disabled=st.session_state.processing):
             st.session_state.processing = True
             
             try:
                 # Check if it's a single company
-                if len(df) == 1 and column == 'company_name':
+                if len(df) == 1:
                     results_df = await self.process_single_company(
                         df[column].iloc[0],
                         query
@@ -228,18 +258,14 @@ class AIAgentUI:
                             
                             # Search
                             search_results = await self.search_service.search(
-                                query.replace("{entity}", entity)
+                                query.replace("{entity}", str(entity))
                             )
-                            
-                            await asyncio.sleep(2)
                             
                             # Extract information
                             info = await self.llm_service.extract_information(
                                 search_results,
-                                entity
+                                str(entity)
                             )
-                            
-                            await asyncio.sleep(2)
                             
                             # Verify information
                             verified_info = await self.llm_service.verify_information(info)
@@ -273,8 +299,14 @@ class AIAgentUI:
             finally:
                 st.session_state.processing = False
 
-    def show_results(self, results_df):
+    def show_results(self, results_df: pd.DataFrame):
+        """Display results in an organized format with improved Google Sheets export."""
         st.header("4. Results")
+        
+        # Initialize export status in session state if not exists
+        if 'export_status' not in st.session_state:
+            st.session_state.export_status = None
+            st.session_state.export_sheet_id = None
         
         # Display each field in an organized way
         for index, row in results_df.iterrows():
@@ -314,6 +346,7 @@ class AIAgentUI:
                     for field, score in scores.items():
                         st.progress(float(score), text=f"{field}: {score:.2f}")
 
+        # Export options
         st.header("5. Export Options")
         
         # Download as CSV
@@ -326,17 +359,43 @@ class AIAgentUI:
         )
         
         # Export to Google Sheets
-        if st.button("Export to Google Sheets"):
-            try:
-                sheet_id = self.sheets_service.create_new_sheet("AI Agent Results")
-                self.sheets_service.update_sheet(
-                    sheet_id,
-                    "A1",
-                    [results_df.columns.tolist()] + results_df.values.tolist()
-                )
-                st.success(f"Exported to new sheet! ID: {sheet_id}")
-            except Exception as e:
-                st.error(f"Export failed: {str(e)}")
+        col1, col2 = st.columns([1, 2])
+        
+        with col1:
+            if st.button("Export to Google Sheets", key="export_button"):
+                try:
+                    with st.spinner("Creating new Google Sheet..."):
+                        sheet_id = self.sheets_service.create_new_sheet("AI Agent Results")
+                        st.session_state.export_sheet_id = sheet_id
+                        st.session_state.export_status = "created"
+                except Exception as e:
+                    st.session_state.export_status = "error"
+                    st.session_state.export_error = str(e)
+        
+        with col2:
+            # Show export status and results
+            if st.session_state.export_status == "created":
+                try:
+                    # Update the sheet with data
+                    with st.spinner("Updating sheet with data..."):
+                        self.sheets_service.update_sheet(
+                            st.session_state.export_sheet_id,
+                            "A1",
+                            [results_df.columns.tolist()] + results_df.values.tolist()
+                        )
+                        sheet_url = f"https://docs.google.com/spreadsheets/d/{st.session_state.export_sheet_id}"
+                        st.success(f"✅ Data exported successfully!")
+                        st.markdown(f"📊 [Open Google Sheet]({sheet_url})")
+                        
+                        # Reset export status for next export
+                        st.session_state.export_status = None
+                        st.session_state.export_sheet_id = None
+                except Exception as e:
+                    st.error(f"Error updating sheet: {str(e)}")
+                    st.session_state.export_status = None
+            elif st.session_state.export_status == "error":
+                st.error(f"Export failed: {st.session_state.export_error}")
+                st.session_state.export_status = None
 
 async def main():
     # Check environment variables first
@@ -353,7 +412,7 @@ async def main():
     if search_mode == "Single Company":
         df = app.single_company_input()
     else:
-        df = app.file_upload_section()
+        df = await app.file_upload_section()
     
     if df is not None:
         selected_column = app.column_selection(df)
