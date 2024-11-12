@@ -18,6 +18,27 @@ nest_asyncio.apply()
 # Load environment variables
 load_dotenv()
 
+# Cached utility functions
+@st.cache_data
+def get_search_mode_options():
+    """Cached function for search mode options."""
+    return ["Single Company", "Batch Processing"]
+
+@st.cache_data
+def get_query_templates():
+    """Cached function for query templates."""
+    return [
+        "Find detailed information about {entity} including contacts, location, and description",
+        "Get company information and social media profiles for {entity}",
+        "Find all contact details and business information for {entity}",
+        "Get complete profile including headquarters, contacts, and key details for {entity}"
+    ]
+
+@st.cache_data
+def get_column_keywords():
+    """Cached function for column keywords."""
+    return ['company', 'entity', 'name', 'organization', 'business']
+
 def check_environment():
     """Check required environment variables."""
     missing_vars = []
@@ -38,12 +59,25 @@ def check_environment():
 
 def init_session_state():
     """Initialize session state variables."""
-    if 'processing' not in st.session_state:
-        st.session_state.processing = False
-    if 'results' not in st.session_state:
-        st.session_state.results = None
-    if 'loaded_data' not in st.session_state:
-        st.session_state.loaded_data = None
+    defaults = {
+        'processing': False,
+        'results': None,
+        'loaded_data': None,
+        'search_mode': None,
+        'selected_column': None,
+        'query_template': None,
+        'export_status': None,
+        'export_sheet_id': None,
+        'max_results': 5,
+        'batch_size': 10,
+        'settings_initialized': False,
+        'last_uploaded_file': None,
+        'last_sheet_id': None
+    }
+    
+    for key, default_value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = default_value
 
 class AIAgentUI:
     def __init__(self):
@@ -58,153 +92,211 @@ class AIAgentUI:
             st.stop()
 
     def setup_page(self):
+        """Set up the Streamlit page with settings in sidebar."""
         st.set_page_config(page_title="AI Information Extractor", layout="wide")
         st.title("AI Information Extractor")
         
-        # Sidebar configuration
+        # Sidebar settings using forms to prevent auto-refresh
         with st.sidebar:
             st.header("Settings")
-            st.number_input("Results per search", value=5, key="max_results")
-            st.number_input("Batch size", value=10, key="batch_size")
+            with st.form(key="settings_form"):
+                max_results = st.number_input(
+                    "Results per search",
+                    min_value=1,
+                    max_value=20,
+                    value=st.session_state.max_results
+                )
+                batch_size = st.number_input(
+                    "Batch size",
+                    min_value=1,
+                    max_value=100,
+                    value=st.session_state.batch_size
+                )
+                submit_button = st.form_submit_button("Apply Settings")
+                
+                if submit_button:
+                    st.session_state.max_results = max_results
+                    st.session_state.batch_size = batch_size
+                    st.session_state.settings_initialized = True
             
             st.markdown("---")
             st.markdown("""
             ### Instructions:
-            1. Choose search mode (Single/Batch)
+            1. Choose search mode
             2. Enter company or upload file
             3. Configure search query
             4. Process and view results
             """)
 
     def search_mode_selection(self):
-        """Select between single company or batch processing."""
-        return st.radio(
+        """Select search mode with improved state management."""
+        if 'search_mode' not in st.session_state:
+            st.session_state.search_mode = None
+
+        # Use cached options
+        mode_options = get_search_mode_options()
+        
+        # If mode is already selected, use it as the default index
+        default_index = 0
+        if st.session_state.search_mode is not None:
+            default_index = mode_options.index(st.session_state.search_mode)
+
+        mode = st.radio(
             "Choose search mode:",
-            ["Single Company", "Batch Processing"]
+            mode_options,
+            key="search_mode_radio",
+            index=default_index
         )
 
-    def single_company_input(self):
-        """Input section for single company search."""
-        st.header("1. Company Input")
-        company_name = st.text_input("Enter company name:", placeholder="e.g., Google")
-        
-        if company_name:
-            return pd.DataFrame({'entity_name': [company_name]})
-        return None
+        if mode != st.session_state.search_mode:
+            # Clear related state when mode changes
+            st.session_state.search_mode = mode
+            st.session_state.loaded_data = None
+            st.session_state.selected_column = None
+            st.session_state.results = None
+            st.session_state.query_template = None
 
+        return mode
+
+    def single_company_input(self):
+        """Handle single company input with form."""
+        st.header("1. Company Input")
+        with st.form(key="company_form"):
+            company_name = st.text_input("Enter company name:", placeholder="e.g., Google")
+            submit = st.form_submit_button("Submit")
+            
+            if submit and company_name:
+                return pd.DataFrame({'entity_name': [company_name]})
+        return None
+    
     async def file_upload_section(self):
-        """Handle file upload and Google Sheets connection with proper async handling."""
+        """Handle file upload with improved state management."""
         st.header("1. Data Input")
         
         data_source = st.radio(
             "Choose data source:",
-            ["Upload CSV", "Google Sheets"]
+            ["Upload CSV", "Google Sheets"],
+            key="data_source"
         )
         
         try:
             if data_source == "Upload CSV":
                 uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
-                if uploaded_file:
+                if uploaded_file and (
+                    'last_uploaded_file' not in st.session_state or 
+                    st.session_state.last_uploaded_file != uploaded_file.name
+                ):
                     df = pd.read_csv(uploaded_file)
                     st.session_state.loaded_data = df
+                    st.session_state.last_uploaded_file = uploaded_file.name
                     st.success("✅ File uploaded successfully!")
             else:
-                sheet_id = st.text_input("Enter Google Sheet ID")
-                if sheet_id and sheet_id != st.session_state.get('last_sheet_id'):
-                    sheet_data = await self.sheets_service.get_sheet_data(sheet_id)
-                    df = pd.DataFrame(sheet_data)
-                    st.session_state.loaded_data = df
-                    st.session_state.last_sheet_id = sheet_id
-                    st.success("✅ Google Sheet connected!")
-                elif st.session_state.get('loaded_data') is not None:
-                    df = st.session_state.loaded_data
-                else:
-                    return None
+                with st.form(key="sheets_form"):
+                    sheet_id = st.text_input("Enter Google Sheet ID")
+                    submit = st.form_submit_button("Connect")
                     
-            if df is not None and not df.empty:
-                st.write("Preview:")
-                st.dataframe(df.head())
-                return df
+                    if submit and sheet_id and sheet_id != st.session_state.get('last_sheet_id'):
+                        with st.spinner("Connecting to Google Sheets..."):
+                            sheet_data = await self.sheets_service.get_sheet_data(sheet_id)
+                            df = pd.DataFrame(sheet_data)
+                            st.session_state.loaded_data = df
+                            st.session_state.last_sheet_id = sheet_id
+                            st.success("✅ Google Sheet connected!")
                 
+            if st.session_state.get('loaded_data') is not None:
+                st.write("Preview:")
+                st.dataframe(st.session_state.loaded_data.head())
+                return st.session_state.loaded_data
+                    
         except Exception as e:
             st.error(f"Error loading data: {str(e)}")
             return None
             
         return None
-    
+
     def column_selection(self, df: Optional[pd.DataFrame]) -> Optional[str]:
-        """Select column containing entity names with flexible naming."""
+        """Select column with cached keywords."""
         if df is not None and not df.empty:
             st.header("2. Column Selection")
             
-            # For single company input
             if len(df.columns) == 1:
+                st.session_state.selected_column = df.columns[0]
                 return df.columns[0]
             
-            # Suggest likely column names
-            likely_columns = [
-                col for col in df.columns if any(
-                    keyword in col.lower() 
-                    for keyword in ['company', 'entity', 'name', 'organization', 'business']
-                )
-            ]
+            if st.session_state.selected_column is None:
+                with st.form(key="column_form"):
+                    # Use cached keywords
+                    keywords = get_column_keywords()
+                    likely_columns = [
+                        col for col in df.columns if any(
+                            keyword in col.lower() 
+                            for keyword in keywords
+                        )
+                    ]
+                    
+                    column_options = likely_columns + [
+                        col for col in df.columns 
+                        if col not in likely_columns
+                    ]
+                    
+                    selected_column = st.selectbox(
+                        "Select the column containing entities:",
+                        column_options,
+                        index=0 if likely_columns else 0
+                    )
+                    
+                    submit = st.form_submit_button("Confirm Column")
+                    if submit:
+                        st.session_state.selected_column = selected_column
             
-            # Create selection list with likely columns first
-            column_options = likely_columns + [
-                col for col in df.columns 
-                if col not in likely_columns
-            ]
-            
-            selected_column = st.selectbox(
-                "Select the column containing entities:",
-                column_options,
-                index=0 if likely_columns else 0
-            )
-            
-            if selected_column:
+            if st.session_state.selected_column:
                 st.write("Sample entities:")
-                st.write(df[selected_column].head().tolist())
+                st.write(df[st.session_state.selected_column].head().tolist())
             
-            return selected_column
+            return st.session_state.selected_column
         return None
-    
+
     def query_configuration(self):
-        """Configure search query with templates or custom input."""
+        """Configure query with cached templates."""
         st.header("3. Query Configuration")
         
-        query_type = st.radio(
-            "Choose query type:",
-            ["Use Template", "Custom Query"]
-        )
-        
-        if query_type == "Use Template":
-            template = st.selectbox(
-                "Select template:",
-                [
-                    "Find detailed information about {entity} including contacts, location, and description",
-                    "Get company information and social media profiles for {entity}",
-                    "Find all contact details and business information for {entity}",
-                    "Get complete profile including headquarters, contacts, and key details for {entity}"
-                ]
-            )
-            return template
-        else:
-            query = st.text_area(
-                "Enter custom query:",
-                "Find the {field} of {entity}",
-                help="Use {entity} as placeholder"
-            )
-            return query
+        if st.session_state.query_template is None:
+            with st.form(key="query_form"):
+                query_type = st.radio(
+                    "Choose query type:",
+                    ["Use Template", "Custom Query"]
+                )
+                
+                if query_type == "Use Template":
+                    # Use cached templates
+                    templates = get_query_templates()
+                    template = st.selectbox(
+                        "Select template:",
+                        templates
+                    )
+                else:
+                    template = st.text_area(
+                        "Enter custom query:",
+                        "Find the {field} of {entity}",
+                        help="Use {entity} as placeholder"
+                    )
+                
+                submit = st.form_submit_button("Confirm Query")
+                if submit:
+                    st.session_state.query_template = template
+                    
+        return st.session_state.query_template
 
     async def process_single_company(self, company_name: str, query: str):
-        """Process a single company."""
+        """Process a single company with progress tracking."""
         try:
-            status_text = st.empty()
-            status_text.text(f"Processing: {company_name}")
+            status_container = st.empty()
+            status_container.info(f"Processing: {company_name}")
             
             # Search
             search_results = await self.search_service.search(
-                query.replace("{entity}", company_name)
+                query.replace("{entity}", company_name),
+                max_results=st.session_state.max_results
             )
             
             # Extract information
@@ -216,27 +308,26 @@ class AIAgentUI:
             # Verify information
             verified_info = await self.llm_service.verify_information(info)
             
-            # Convert to DataFrame
-            result_df = pd.DataFrame([{
+            status_container.success(f"✅ Processed: {company_name}")
+            
+            return pd.DataFrame([{
                 "Entity": company_name,
                 **verified_info.model_dump()
             }])
             
-            return result_df
-            
         except Exception as e:
-            st.error(f"Error processing {company_name}: {str(e)}")
+            status_container.error(f"Error processing {company_name}: {str(e)}")
             return pd.DataFrame([{
                 "Entity": company_name,
                 "error": str(e)
             }])
 
     async def process_data(self, df: pd.DataFrame, column: str, query: str):
-        """Process data with proper error handling and progress tracking."""
+        """Process data with improved progress tracking and error handling."""
         if st.button("Process Data", disabled=st.session_state.processing):
-            st.session_state.processing = True
-            
             try:
+                st.session_state.processing = True
+                
                 # Check if it's a single company
                 if len(df) == 1:
                     results_df = await self.process_single_company(
@@ -247,178 +338,131 @@ class AIAgentUI:
                     # Batch processing
                     progress_bar = st.progress(0)
                     status_text = st.empty()
-                    error_container = st.empty()
+                    results_container = st.container()
                     
                     results = []
                     total = len(df)
+                    batch_size = st.session_state.batch_size
                     
-                    for idx, entity in enumerate(df[column]):
-                        try:
-                            status_text.text(f"Processing: {entity} ({idx + 1}/{total})")
-                            
-                            # Search
-                            search_results = await self.search_service.search(
+                    for i in range(0, total, batch_size):
+                        batch = df[i:i + batch_size]
+                        status_text.text(f"Processing batch {i//batch_size + 1}/{(total-1)//batch_size + 1}")
+                        
+                        tasks = [
+                            self.process_single_company(
+                                str(entity),
                                 query.replace("{entity}", str(entity))
                             )
-                            
-                            # Extract information
-                            info = await self.llm_service.extract_information(
-                                search_results,
-                                str(entity)
-                            )
-                            
-                            # Verify information
-                            verified_info = await self.llm_service.verify_information(info)
-                            
-                            results.append({
-                                "Entity": entity,
-                                **verified_info.model_dump()
-                            })
-                            
-                        except Exception as e:
-                            error_msg = str(e)
-                            error_container.error(f"Error processing {entity}: {error_msg}")
-                            results.append({
-                                "Entity": entity,
-                                "error": error_msg
-                            })
-                            await asyncio.sleep(5)
+                            for entity in batch[column]
+                        ]
                         
-                        progress_bar.progress((idx + 1) / total)
-                        await asyncio.sleep(2)
+                        batch_results = await asyncio.gather(*tasks)
+                        results.extend([df for df in batch_results if df is not None])
+                        
+                        progress_bar.progress(min((i + batch_size) / total, 1.0))
+                        
+                        # Show intermediate results
+                        if results:
+                            with results_container:
+                                st.write("Latest results:")
+                                st.dataframe(pd.concat(results, ignore_index=True).tail())
                     
-                    results_df = pd.DataFrame(results)
+                    results_df = pd.concat(results, ignore_index=True)
                 
-                if not results_df.empty:
-                    st.session_state.results = results_df
-                    self.show_results(results_df)
+                st.session_state.results = results_df
+                st.session_state.processing = False
+                
+                # Show export options
+                await self.show_export_options(results_df)
                 
             except Exception as e:
                 st.error(f"Error during processing: {str(e)}")
-            
-            finally:
                 st.session_state.processing = False
-
-    def show_results(self, results_df: pd.DataFrame):
-        """Display results in an organized format with improved Google Sheets export."""
-        st.header("4. Results")
-        
-        # Initialize export status in session state if not exists
-        if 'export_status' not in st.session_state:
-            st.session_state.export_status = None
-            st.session_state.export_sheet_id = None
-        
-        # Display each field in an organized way
-        for index, row in results_df.iterrows():
-            with st.expander(f"Details for {row['Entity']}", expanded=True):
-                # Show any errors first
-                if 'error' in row and row['error']:
-                    st.error(f"Error processing this entity: {row['error']}")
-                    continue
-                    
-                col1, col2 = st.columns(2)
                 
-                with col1:
-                    st.write("**Basic Information**")
-                    st.write(f"Company: {row['Entity']}")
-                    st.write(f"Website: {row.get('website', 'N/A')}")
-                    st.write(f"Location: {row.get('location', 'N/A')}")
-                    st.write(f"Phone: {row.get('phone', 'N/A')}")
-                    st.write(f"Email: {row.get('email', 'N/A')}")
-                
-                with col2:
-                    st.write("**Additional Information**")
-                    if row.get('description'):
-                        st.write("Description:", row['description'])
-                    if row.get('social_media'):
-                        st.write("Social Media:")
-                        for platform, link in row['social_media'].items():
-                            st.write(f"- {platform}: {link}")
-                    if row.get('additional_info'):
-                        st.write("Other Details:")
-                        for key, value in row['additional_info'].items():
-                            st.write(f"- {key}: {value}")
-                            
-                # Show confidence scores if available
-                if row.get('confidence_scores'):
-                    st.write("**Confidence Scores**")
-                    scores = row['confidence_scores']
-                    for field, score in scores.items():
-                        st.progress(float(score), text=f"{field}: {score:.2f}")
-
-        # Export options
-        st.header("5. Export Options")
+    async def show_export_options(self, results_df: pd.DataFrame):
+        """Show and handle export options."""
+        st.header("4. Export Options")
         
-        # Download as CSV
-        csv = results_df.to_csv(index=False)
-        st.download_button(
-            label="Download CSV",
-            data=csv,
-            file_name="extracted_data.csv",
-            mime="text/csv"
-        )
-        
-        # Export to Google Sheets
-        col1, col2 = st.columns([1, 2])
+        col1, col2 = st.columns(2)
         
         with col1:
-            if st.button("Export to Google Sheets", key="export_button"):
-                try:
-                    with st.spinner("Creating new Google Sheet..."):
-                        sheet_id = self.sheets_service.create_new_sheet("AI Agent Results")
-                        st.session_state.export_sheet_id = sheet_id
-                        st.session_state.export_status = "created"
-                except Exception as e:
-                    st.session_state.export_status = "error"
-                    st.session_state.export_error = str(e)
+            # Download as CSV
+            csv = results_df.to_csv(index=False)
+            st.download_button(
+                label="Download CSV",
+                data=csv,
+                file_name="extracted_data.csv",
+                mime="text/csv"
+            )
         
         with col2:
-            # Show export status and results
-            if st.session_state.export_status == "created":
-                try:
-                    # Update the sheet with data
-                    with st.spinner("Updating sheet with data..."):
-                        self.sheets_service.update_sheet(
-                            st.session_state.export_sheet_id,
-                            "A1",
-                            [results_df.columns.tolist()] + results_df.values.tolist()
-                        )
-                        sheet_url = f"https://docs.google.com/spreadsheets/d/{st.session_state.export_sheet_id}"
-                        st.success(f"✅ Data exported successfully!")
-                        st.markdown(f"📊 [Open Google Sheet]({sheet_url})")
-                        
-                        # Reset export status for next export
-                        st.session_state.export_status = None
-                        st.session_state.export_sheet_id = None
-                except Exception as e:
-                    st.error(f"Error updating sheet: {str(e)}")
-                    st.session_state.export_status = None
-            elif st.session_state.export_status == "error":
-                st.error(f"Export failed: {st.session_state.export_error}")
+            # Export to Google Sheets
+            await self.export_to_sheets(results_df)
+
+    async def export_to_sheets(self, df: pd.DataFrame):
+        """Handle Google Sheets export with proper state management."""
+        if st.session_state.export_status != "processing":
+            try:
+                # Create container for export status
+                export_container = st.empty()
+                
+                # Initialize export
+                st.session_state.export_status = "processing"
+                export_container.info("🔄 Exporting to Google Sheets...")
+                
+                # Export data
+                sheet_id = await self.sheets_service.export_to_sheets(df)
+                
+                # Update status and show success message
+                export_container.success("✅ Data exported successfully!")
+                
+                # Show link to sheet
+                sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}"
+                st.markdown(f"📊 [Open Google Sheet]({sheet_url})")
+                
+                # Reset status
+                st.session_state.export_status = None
+                st.session_state.export_sheet_id = sheet_id
+                
+            except Exception as e:
+                st.error(f"Export failed: {str(e)}")
                 st.session_state.export_status = None
 
 async def main():
-    # Check environment variables first
-    check_environment()
+    """Main application flow."""
+    try:
+        # Check environment variables first
+        check_environment()
+        
+        # Initialize application state
+        init_session_state()
+        
+        # Create application instance
+        app = AIAgentUI()
+        
+        # Setup page
+        app.setup_page()
+        
+        # Main workflow
+        search_mode = app.search_mode_selection()
+        
+        if search_mode == "Single Company":
+            df = app.single_company_input()
+        else:
+            df = await app.file_upload_section()
+        
+        if df is not None:
+            selected_column = app.column_selection(df)
+            if selected_column:
+                query = app.query_configuration()
+                if query:
+                    await app.process_data(df, selected_column, query)
     
-    # Initialize application
-    init_session_state()
-    app = AIAgentUI()
-    app.setup_page()
-    
-    # Select search mode
-    search_mode = app.search_mode_selection()
-    
-    if search_mode == "Single Company":
-        df = app.single_company_input()
-    else:
-        df = await app.file_upload_section()
-    
-    if df is not None:
-        selected_column = app.column_selection(df)
-        if selected_column:
-            query = app.query_configuration()
-            await app.process_data(df, selected_column, query)
+    except Exception as e:
+        st.error("An unexpected error occurred!")
+        st.error(f"Error details: {str(e)}")
+        if st.checkbox("Show detailed error trace"):
+            st.code(traceback.format_exc())
 
 if __name__ == "__main__":
     asyncio.run(main())
