@@ -1,15 +1,16 @@
 # AI Information Extractor
 
-An advanced AI agent that automates web-based information extraction for entities in datasets. This tool leverages cutting-edge LLM technology to process and structure data from web searches, making information gathering efficient and scalable.
+An AI agent that automates web-based information extraction for entities in datasets. This tool leverages LLM technology to process and structure data from web searches, making information gathering efficient .
 
 ## 🚀 Project Overview
 
-AI Information Extractor is a powerful tool that:
-- Processes datasets (CSV/Google Sheets) to identify target entities
-- Performs intelligent web searches for each entity
-- Uses LLM technology to extract and structure relevant information
-- Presents data in an intuitive dashboard interface
-- Supports both single-entity and batch processing modes
+This tool enables users to:
+- Upload CSV files or connect Google Sheets for data input
+- Select target columns for entity identification
+- Configure custom search queries
+- Extract structured information using AI
+- Export results to CSV or Google Sheets
+- Process both single entities and batch data
 
 ## ✨ Key Features
 
@@ -26,30 +27,32 @@ AI Information Extractor is a powerful tool that:
 - Batch processing capabilities
 
 ### Information Extraction
-- Automated web searching with rate limiting
-- LLM-powered information parsing
+- Automated web searching via SerpAPI
+- AI-powered information parsing using Groq
 - Structured data extraction
-- Confidence scoring for extracted information
+- Error handling and retry mechanisms
 
 ### Results Management
-- Interactive results dashboard
+- Interactive results display
 - CSV export functionality
-- Google Sheets integration for results
-- Detailed error reporting and handling
+- Google Sheets integration with:
+  - Public/private access control
+  - Real-time updates
+  - Formatted output
 
 ## 🛠 Technical Stack
 
 - **Frontend**: Streamlit
-- **Backend**: Python
+- **Backend**: Python 3.9+
 - **Data Processing**: Pandas
 - **Web Search**: SerpAPI
 - **LLM Integration**: Groq API
-- **Cloud Integration**: Google Sheets API
+- **Cloud Integration**: Google Sheets & Drive APIs
 
 ## 📋 Prerequisites
 
 - Python 3.9+
-- Google Cloud Platform account (for Sheets API)
+- Google Cloud Platform account (for APIs)
 - SerpAPI account
 - Groq API account
 
@@ -104,10 +107,10 @@ streamlit run app/main.py
 5. Export results
 
 ### Google Sheets Integration
-1. Enable Google Sheets API in GCP
-2. Download credentials JSON
-3. Set up environment variables
-4. Use sheet ID for data import/export
+1. Enable APIs in Google Cloud Console
+2. Download service account credentials
+3. Place in credentials folder
+4. Configure environment variables
 
 ## 🎯 Features Overview
 
@@ -136,7 +139,7 @@ streamlit run app/main.py
 
 The application includes robust error handling for:
 - API rate limits
-- Failed searches
+- Failed search retry mechanisms
 - LLM processing errors
 - File upload issues
 - Data validation failures
