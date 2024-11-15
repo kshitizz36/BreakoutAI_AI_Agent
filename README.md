@@ -2,6 +2,10 @@
 
 An AI agent that automates web-based information extraction for entities in datasets. This tool leverages LLM technology to process and structure data from web searches, making information gathering efficient .
 
+## 🎥 Demo
+
+[Watch the demo video](https://www.loom.com/share/ece06e5ca0344f898ccbe115cbf449fb?sid=d529720d-e26c-433a-b64a-22ee85e9ce61)
+
 ## 🚀 Project Overview
 
 This tool enables users to:
@@ -144,9 +148,6 @@ The application includes robust error handling for:
 - File upload issues
 - Data validation failures
 
-## 🎥 Demo
-
-[Watch the demo video](https://www.loom.com/share/ece06e5ca0344f898ccbe115cbf449fb?sid=d529720d-e26c-433a-b64a-22ee85e9ce61)
 
 ## 🌟 Acknowledgments
 
