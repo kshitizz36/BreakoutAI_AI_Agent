@@ -2,7 +2,7 @@ import os
 import sys
 from pathlib import Path
 
-# Add the project root to Python path
+# Adding the project root to Python path
 current_dir = Path(__file__).parent
 sys.path.append(str(current_dir))
 
@@ -13,7 +13,7 @@ import pandas as pd
 from app.services.google_sheets import GoogleSheetsService  # Updated import path
 
 async def verify_setup():
-    # Load environment variables
+    # Loading environment variables
     load_dotenv()
     
     # 1. Check credentials file
