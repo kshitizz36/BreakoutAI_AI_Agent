@@ -12,7 +12,7 @@ from services.llm_service import LLMService
 from utils.file_handler import FileHandler
 from utils.error_handler import ErrorHandler
 
-# Enable nested async support for Streamlit
+# nested async support for Streamlit
 nest_asyncio.apply()
 
 # Load environment variables
