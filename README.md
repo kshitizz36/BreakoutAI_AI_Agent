@@ -146,7 +146,7 @@ The application includes robust error handling for:
 
 ## 🎥 Demo
 
-[Watch the demo video]([your-loom-video-link-here](https://www.loom.com/share/ece06e5ca0344f898ccbe115cbf449fb?sid=d529720d-e26c-433a-b64a-22ee85e9ce61))
+[Watch the demo video]([https://www.loom.com/share/ece06e5ca0344f898ccbe115cbf449fb?sid=d529720d-e26c-433a-b64a-22ee85e9ce61])
 
 ## 🌟 Acknowledgments
 
